@@ -237,3 +237,94 @@ def displayone(model, idx, dataset,thres):
         print(scores)
         imageBB = torchvision.utils.draw_bounding_boxes(image,boxes[0],labels=scr, colors='orange', width= 4)
         show(imageBB)
+
+
+
+
+def train(model, dataset,dataset_test, split):
+    model.train()
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    num_classes = dataset.takeclass.size+1
+
+    # split the dataset in train and test set
+    torch.manual_seed(1)
+
+    indices = torch.randperm(len(dataset)).tolist()
+    num_train = round(len(indices)*split)
+    dataset = torch.utils.data.Subset(dataset, indices[:num_train])
+    dataset_test = torch.utils.data.Subset(dataset_test, indices[num_train:])
+
+    # define training and validation data loaders
+    data_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=1, 
+        shuffle=True, num_workers=1,
+        collate_fn=utils.collate_fn, 
+        pin_memory=True)
+
+    #data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=2,collate_fn=utils.collate_fn)
+
+    # get number of input features for the classifier
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    # replace the pre-trained head with a new one
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+    model.to(device)
+
+    # construct an optimizer
+    params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.SGD(params, lr=0.005,
+                                momentum=0.9, weight_decay=0.0005)
+    # and a learning rate scheduler
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
+                                                   step_size=3,
+                                                   gamma=0.1)
+
+    num_epoch = 10
+    start_time = time.time()
+    for epoch in range(num_epoch):
+        model_time = time.time()
+        train_one_epoch(model, optimizer, data_loader, device, epoch)
+        lr_scheduler.step()
+
+        time_diff = time.time() - model_time
+        print("TIME FOR EPOCH: " + str(epoch)+ " is: " + str(time_diff/60))
+
+    print("Total time for traning: " + str((time.time()-start_time)/60))
+    return model, dataset, dataset_test
+
+
+def train_one_epoch(model, optimizer, data_loader, device, epoch, scaler=None):
+    model.train()
+
+    lr_scheduler = None
+    if epoch == 0:
+        warmup_factor = 1.0 / 1000
+        warmup_iters = min(1000, len(data_loader) - 1)
+
+        lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer, start_factor=warmup_factor, total_iters=warmup_iters
+        )
+
+    for batch, (images, targets) in enumerate(data_loader):
+        images = list(image.to(device) for image in images)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        with torch.cuda.amp.autocast(enabled=scaler is not None):
+            loss_dict = model(images, targets)
+            losses = sum(loss for loss in loss_dict.values())
+
+
+        optimizer.zero_grad()
+        if scaler is not None:
+            scaler.scale(losses).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            losses.backward()
+            optimizer.step()
+
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+
+        if batch % 39 == 0:
+            print("Batch: " + str(batch) + "/390 = " + str(batch % 39)+ "/10")
+
+    return 
