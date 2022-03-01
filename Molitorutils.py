@@ -11,7 +11,8 @@ import torchvision.transforms.functional as F
 import matplotlib
 import detection.utils as utils
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from detection.engine import train_one_epoch, evaluate
+import csv 
+import time 
 
 class cvatDataset(Dataset):
    def __init__(self, img_dir, annotations_dir, area = 400,takeclass = np.linspace(0,48,49), transform=None, target_transform = None ):
@@ -282,7 +283,7 @@ def train(model, dataset,dataset_test, split):
     start_time = time.time()
     for epoch in range(num_epoch):
         model_time = time.time()
-        train_one_epoch(model, optimizer, data_loader, device, epoch)
+        train_1_epoch(model, optimizer, data_loader, device, epoch)
         lr_scheduler.step()
 
         time_diff = time.time() - model_time
@@ -292,7 +293,7 @@ def train(model, dataset,dataset_test, split):
     return model, dataset, dataset_test
 
 
-def train_one_epoch(model, optimizer, data_loader, device, epoch, scaler=None):
+def train_1_epoch(model, optimizer, data_loader, device, epoch, scaler=None):
     model.train()
 
     lr_scheduler = None
