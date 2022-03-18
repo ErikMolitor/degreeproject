@@ -8,7 +8,6 @@ import detection.transforms as T
 import matplotlib.pyplot as plt
 import torchvision
 import torchvision.transforms.functional as F
-import matplotlib
 import detection.utils as utils
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import csv 
@@ -58,7 +57,7 @@ class pascalVoc(Dataset):
                if testarea < self.area or int(child[0].text) not in self.takeclass:
                    continue
                boxes[i,:] = np.array([int(float(c4[0].text)), int(float(c4[1].text)), int(float(c4[2].text)), int(float(c4[3].text))])
-               labels[i] = 1#int(child[0].text)
+               labels[i] = list(self.takeclass).index(int(child[0].text))+1
                i += 1
               
        boxes = torch.as_tensor(boxes,dtype=torch.float32)
@@ -301,9 +300,9 @@ def displayone(model, idx, dataset,thres):
         image = torch.mul(image[0],255)
         image = torch.tensor(image,dtype=torch.uint8)
         scr = [str(score) for score in scores]
-        print(scores)
-        imageBB = torchvision.utils.draw_bounding_boxes(image,boxes[0],labels=scr, colors='orange', width= 4)
+        imageBB = torchvision.utils.draw_bounding_boxes(image,boxes[0], colors='orange', width= 4)
         show(imageBB)
+    return pred, scores
 
 
 
@@ -323,12 +322,16 @@ def train(model, dataset,dataset_test, split):
 
     # define training and validation data loaders
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=1, 
+        dataset, batch_size=2, 
         shuffle=True, num_workers=1,
         collate_fn=utils.collate_fn, 
         pin_memory=True)
 
-    #data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=2,collate_fn=utils.collate_fn)
+    data_loader_test = torch.utils.data.DataLoader(
+        dataset_test, batch_size=1, 
+        shuffle=False, num_workers=2,
+        collate_fn=utils.collate_fn,
+        pin_memory=True)
 
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
@@ -361,7 +364,6 @@ def train(model, dataset,dataset_test, split):
 
 def train_1_epoch(model, optimizer, data_loader, device, epoch, scaler=None):
     model.train()
-
     lr_scheduler = None
     if epoch == 0:
         warmup_factor = 1.0 / 1000
@@ -391,7 +393,7 @@ def train_1_epoch(model, optimizer, data_loader, device, epoch, scaler=None):
         if lr_scheduler is not None:
             lr_scheduler.step()
 
-        if batch % 39 == 0:
-            print("Batch: " + str(batch) + "/390 = " + str(batch % 39)+ "/10")
+        if batch % 100 == 0:
+            print("Batch: " + str(batch) + "/"+str(len(data_loader)))
 
     return 

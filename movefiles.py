@@ -1,5 +1,7 @@
-
 import os
+from tkinter import image_names
+
+from matplotlib.pyplot import bar_label
 from Molitorutils import *
 import torchvision.transforms as T 
 from torchvision.utils import save_image
@@ -8,7 +10,7 @@ import shutil
 from lxml import etree as ET
 import torchvision.transforms.functional as TF
 import random
-
+import pandas as pd
 
 def Movefile1():
     rootannot = "./data/odden/Annotations/"
@@ -35,6 +37,36 @@ def cropandequalizeImage(image):
     image = image/255
     return image
 
+def cropImage(image):
+    heightOrignial = image.shape[1]
+    width = image.shape[2]
+    height = int(heightOrignial*0.5)
+    top = int(heightOrignial*0.2)
+    image = T.functional.crop(image,top,0,height,width )
+    return image
+
+def disnonannotimage(dataset, img_dir, annot_dir, img_to, annot_to):
+    
+    filenames = dataset.annotnames
+    imagenames = dataset.imagenames
+    i = 0
+    for idx in range(dataset.__len__()):
+        image, targets = dataset.__getitem__(idx)
+        print(idx)
+
+
+        if len(targets['labels']) == 0:
+            print("removing: ")
+            i += 1
+            #save image
+            os.remove(img_dir+imagenames[idx])
+            #shutil.copyfile(img_dir+imagenames[idx], img_to + imagenames[idx])
+            
+            #move annot
+            os.remove(annot_dir+filenames[idx])
+            #shutil.copyfile(annot_dir+filenames[idx], annot_to + filenames[idx])
+
+    print("removed: " + str(i))
 
 def preprocessImages(dataset):
     
@@ -94,7 +126,88 @@ def sortImages(cls,dataset):
             #move annot
             shutil.copyfile(rootannotfrom+filenames[idx], rootannotto + filenames[idx])
             
+def rename(dataset):
+    rootannotfrom ="./dataset/agumented/22agumented/Annotations"
+    imagesrootmovefrom = "./dataset/agumented/22agumented/JPEGImages"
+    
+    filenames = dataset.annotnames
+    imagenames = dataset.imagenames
 
+    for idx in range(dataset.__len__()):
+        oldfilename = filenames[idx]
+        oldimagename = imagenames[idx]
+
+        newfilename = oldfilename[:-4]+"_2.xml"
+        newimagename = oldimagename[:-4]+"_2.jpg"
+        annopathto = rootannotfrom +"/" +newfilename
+        annopathfrom = rootannotfrom + "/"+oldfilename
+        os.rename(annopathfrom,annopathto)
+
+        imagepathto = imagesrootmovefrom+"/"+newimagename
+        imagepathfrom = imagesrootmovefrom+"/"+oldimagename
+        os.rename(imagepathfrom,imagepathto)
+        
+def killpedestrian(dataset,img_dir,annotations_dir):
+
+    annot_to ='./dataset/final/AnnotationsPed/'
+    img_to ='./dataset/final/JPEGImagesPed/'
+
+    filenames = dataset.annotnames
+    imagenames = dataset.imagenames
+    cls = 27 
+
+    ii = 0
+    jj = 0 
+    b = True
+    for idx in range(dataset.__len__()):
+        image, targets = dataset.__getitem__(idx)
+        boxes = targets['boxes']
+        print(str(idx) + " out of " +str(dataset.__len__()))
+
+
+        for idx2, box in enumerate(boxes):
+            if targets['labels'][idx2] == cls+1:
+                if b:
+                   first = idx
+                   b = False
+                ii +=1
+                h = int(box[3]-box[1])
+                w = int(box[2]-box[0])        
+                if h*w <= 70**2:
+                    i = int(box[1])
+                    j = int(box[0])
+                    h = int(box[3]-box[1])
+                    w = int(box[2]-box[0])
+                    v = torch.tensor(0)
+                    image = T.functional.erase(image,i,j,h,w,v)
+                else:
+                    ii = 0
+                
+        tree = ET.parse(os.path.join(annotations_dir,filenames[idx]))
+        root = tree.getroot()
+
+
+        for child in root:
+            if child.tag == 'object':
+                label = child[0].text
+                c4 = child[4]
+                width = int(float(c4[2].text))-int(float(c4[0].text))
+                height = int(float(c4[3].text))-int(float(c4[1].text))
+                testarea = width*height
+                if testarea < dataset.area or int(label) not in dataset.takeclass:
+                    continue
+
+                if int(label) ==cls:
+                    jj +=1
+                    if testarea <=70**2:
+                        parent = child.getparent()
+                        parent.remove(child)
+                    else:
+                        jj = 0
+
+        save_image(image,img_to + imagenames[idx])
+        tree.write(annot_to +filenames[idx])
+    
 
 def augmentImages(dataset,cls,rootannotfrom,imagesrootmovefrom):
     cls = cls +1
@@ -165,51 +278,178 @@ def augmentImages(dataset,cls,rootannotfrom,imagesrootmovefrom):
         
         
         
-        # rotator = T.GaussianBlur(9, sigma=(0.1, 2.0))
-        # image = rotator(org_image)
-        # save_image(image,imagerootmoveto +"AUGMENTED" + imagenames[idx][:-4]+"_"+str(cls-1)+"_blur.jpg")
-        # tree.write(rootannotto + "AUGMENTED" +filenames[idx][:-4]+"_"+str(cls-1)+"_blur.xml")
+        rotator = T.GaussianBlur(9, sigma=(0.1, 2.0))
+        image = rotator(org_image)
+        save_image(image,imagerootmoveto +"AUGMENTED" + imagenames[idx][:-4]+"_"+str(cls-1)+"_blur.jpg")
+        tree.write(rootannotto + "AUGMENTED" +filenames[idx][:-4]+"_"+str(cls-1)+"_blur.xml")
+
+def augmentImages2(dataset, img_dir, annot_dir, img_to, annot_to):
+
+    
+    filenames = dataset.annotnames
+    imagenames = dataset.imagenames
+    
+    x = np.array([12,18,22])
+    x2 = x + np.ones(len(x))
+
+    x = torch.tensor(x.astype(int))
+    x2 = torch.tensor(x2.astype(int))
+
+    for idx in range(dataset.__len__()):
+        image, targets = dataset.__getitem__(idx)
+        boxes = targets['boxes']
+        print(idx)
+
+        for idx2, box in enumerate(boxes):
+
+            if targets['labels'][idx2] not in x2:
+                i = int(box[1])
+                j = int(box[0])
+                h = int(box[3]-box[1])
+                w = int(box[2]-box[0])
+                v = torch.tensor(0)
+                image = T.functional.erase(image,i,j,h,w,v)
+                
+        tree = ET.parse(os.path.join(annot_dir,filenames[idx]))
+        root = tree.getroot()
+        for child in root:
+            if child.tag == 'object':
+                label = child[0].text
+
+                if int(label) not in x:
+                    parent = child.getparent()
+                    parent.remove(child)
         
-cls = 45 
-imagesrootmovefrom = "./data/agumenteddata/"+str(cls)+"/JPEGImages/" #"./data/agumenteddata/croped/JPEGImages/"#
-rootannotfrom  = "./data/agumenteddata/"+str(cls)+"/Annotations/" # "./data/agumenteddata/croped/Annotations/"#
-dataset= pascalVoc( imagesrootmovefrom,rootannotfrom, transform=get_transform(train=False),area=700)
+        
+        org_image= image
+        # rotator = T.RandomAdjustSharpness(2,1)
+        # image = rotator(org_image)
+        # save_image(image,imagerootmoveto +"AUGMENTED" + imagenames[idx][:-4]+"_"+str(cls-1)+"_sharpness.jpg")
+        # tree.write(rootannotto +"AUGMENTED" +filenames[idx][:-4]+"_"+str(cls-1)+"_sharpness.xml")
+        
+        
+        # rotator = T.RandomPerspective(0.2,1)
+        # image = rotator(org_image)
+        # save_image(image,img_to + "AUGMENTED" +imagenames[idx][:-4]+"_perspective.jpg")
+        # tree.write(annot_to + "AUGMENTED" +filenames[idx][:-4]+"_perspective.xml")
+        
+        
+        rotator = T.RandomHorizontalFlip(1)
+        image = rotator(org_image)
+        save_image(image,img_to +"AUGMENTED" + imagenames[idx][:-4]+"_horizontal.jpg")
+        tree.write(annot_to + "AUGMENTED" +filenames[idx][:-4]+"_horizontal.xml")
+        
+        
+        # rotator = T.RandomRotation(15)
+        # image = rotator(org_image)
+        # save_image(image,imagerootmoveto +"AUGMENTED" + imagenames[idx][:-4]+"_"+str(cls-1)+"_rotation.jpg")
+        # tree.write(rootannotto + "AUGMENTED" +filenames[idx][:-4]+"_"+str(cls-1)+"_rotation.xml")
+        
+        
+        
+        # rotator = T.GaussianBlur(3, sigma=(0.1, 2.0))
+        # image = rotator(org_image)
+        # save_image(image,img_to +"AUGMENTED" + imagenames[idx][:-4]+"_blur.jpg")
+        # tree.write(annot_to + "AUGMENTED" +filenames[idx][:-4]+"_blur.xml")
+
+
+
+def cropandsortnonannot(dataset, img_dir, annot_dir, img_to, annot_to):
+
+    imagenames = dataset.imagenames
+    filenames = dataset.annotnames
+    x = np.array([1,12,13,17,18,22, 27, 38, 43, 44, 45])
+    x = x + np.ones(len(x))
+
+    for idx in range(dataset.__len__()):
+        print(idx)
+        image, targets = dataset.__getitem__(idx)        
+        
+        
+        if pd.Series(targets['labels']).isin(x).any() != True:
+            print("No correct class")
+            print(targets['labels'])
+        else:
+                
+            if len(targets['labels']) != 0:
+
+                image = cropImage(image)        
+                save_image(image,img_to + imagenames[idx])
+                
+                tree = ET.parse(os.path.join(annot_dir,filenames[idx]))
+                root = tree.getroot()
+                for child in root:
+                    if child.tag == 'object':
+                        c4 = child[4]
+                        c4[1].text = str(int(float(c4[1].text)-800))
+                        c4[3].text = str(int(float(c4[3].text)-800))
+                tree.write(annot_to + filenames[idx])
+            else:
+                print("No annotations")
+
+#cls = 45 
+#imagesrootmovefrom = "./data/agumenteddata/"+str(cls)+"/JPEGImages/" #"./data/agumenteddata/croped/JPEGImages/"#
+#rootannotfrom  = "./data/agumenteddata/"+str(cls)+"/Annotations/" # "./data/agumenteddata/croped/Annotations/"#
+img_dir = './dataset/totaldataset/JPEGImages/'
+annotations_dir = './dataset/totaldataset/Annotations/'
+annot_to ='./dataset/testset/Annotations/'
+img_to ='./dataset/testset/JPEGImages/'
+
+annotations_dir ='./dataset/testset/Annotations/'
+img_dir ='./dataset/testset/JPEGImages/'
+annot_to ='./dataset/testset/firstfoldAnnot/'
+img_to ='./dataset/testset/firstfoldImages/'
+
+
+# annotations_dir ='./dataset/testset/firstfoldAnnot/'
+# img_dir ='./dataset/testset/firstfoldImages/'
+
+annotations_dir ='./dataset/testset/Annotations/'
+img_dir ='./dataset/testset/JPEGImages/'
+annot_to ='./dataset/testset/secondfoldAnnot/'
+img_to ='./dataset/testset/secondfoldImages/'
+
+annotations_dir ='./dataset/testset/Annotations/'
+img_dir ='./dataset/testset/JPEGImages/'
+# annot_to ='./dataset/testset/thirdfoldAnnot/'
+# img_to ='./dataset/testset/thirdfoldImages/'
+annotations_dir ='./dataset/final/Annotations1600/'
+img_dir ='./dataset/final/JPEGImages1600/'
+
+
+dataset= pascalVoc(img_dir, annotations_dir, transform=get_transform(train=False),area=1600)
+
+#augmentImages2(dataset,img_dir, annotations_dir, img_to, annot_to)
+
+#disnonannotimage(dataset, img_dir, annotations_dir, img_to, annot_to)
 
 #sortImages(cls, dataset)
-augmentImages(dataset,cls,rootannotfrom,imagesrootmovefrom)
-
+#augmentImages(dataset,cls,rootannotfrom,imagesrootmovefrom)
+#rename(dataset)
+killpedestrian(dataset, img_dir,annotations_dir)
+#disnonannotimage(dataset)
 # class nr 
+
 
 """
 14 0    stop
-
 *2
-43 84   no parking         DONE
+43 84   no parking         
 44 106  no stop or park    
 45 138  parking
-
 rotate, random perspective
-
-
 *4
-13 41   give way            DONE
-18 38   danger              DONE
-
+13 41   give way            
+18 38   danger              
 rotate, random perspective, horizonflip, sharpness
-
 *10
-12 16   priority road       DONE 
-22 15   uneven road         DONE
-
+12 16   priority road       
+22 15   uneven road         
 rotate, random perspective, horizonflip, sharpness
-
-
-
 *1
 1  247  30 
 17 191  no entry 
 38 174  keep right
-
 /3
 27 928  pedestrian cross
 """
