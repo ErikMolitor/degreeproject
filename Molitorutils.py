@@ -79,6 +79,77 @@ class pascalVoc(Dataset):
        return image, target
 
 
+
+class pascalVocRetina(Dataset):
+   def __init__(self, img_dir, annotations_dir, area = 400,takeclass = np.linspace(0,48,49), transform=None, target_transform = None ):
+       self.annotation_dir = annotations_dir
+       self.img_dir = img_dir
+       self.transform = transform
+       self.target_transform = target_transform
+       self.takeclass = takeclass
+      
+       self.area = area
+       self.square =  np.array([12, 27, 45]) 
+       self.round =  np.array([1,17, 38, 43, 44])    
+       self.triangular =  x = np.array([18,22])   
+       self.Invtriangular =  np.array([13])     
+       
+       
+       self.imagenames = sorted(os.listdir(self.img_dir))
+       self.annotnames = sorted(os.listdir(self.annotation_dir))
+      
+   def __len__(self):
+       return len(os.listdir(self.annotation_dir))
+ 
+   def __getitem__(self, idx):
+        image = Image.open(self.img_dir +self.imagenames[idx]).convert("RGB")
+
+        file = ET.parse(os.path.join(self.annotation_dir,self.annotnames[idx])).getroot()
+
+        num_objs = 0
+        for child in file:
+            if child.tag == 'object':
+                c4 = child[4]
+                width = int(float(c4[2].text))-int(float(c4[0].text))
+                height = int(float(c4[3].text))-int(float(c4[1].text))
+                testarea = width*height
+                if testarea < self.area or int(child[0].text) not in self.takeclass:
+                    continue
+                num_objs +=1
+        boxes = np.zeros((num_objs,4))
+        labels = np.zeros(num_objs)
+        i = 0
+        for child in file:
+            if child.tag == 'object':
+                c4 = child[4]
+                width = int(float(c4[2].text))-int(float(c4[0].text))
+                height = int(float(c4[3].text))-int(float(c4[1].text))
+                testarea = width*height
+                if testarea < self.area or int(child[0].text) not in self.takeclass:
+                    continue
+                boxes[i,:] = np.array([int(float(c4[0].text)), int(float(c4[1].text)), int(float(c4[2].text)), int(float(c4[3].text))])
+                labels[i] = list(self.takeclass).index(int(child[0].text))+1
+                i += 1
+                
+        boxes = torch.as_tensor(boxes,dtype=torch.float32)
+        labels = torch.as_tensor(labels,dtype=torch.int64)
+        image_id = torch.tensor([idx])
+        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        iscrowd = torch.zeros((num_objs,), dtype=torch.int64)
+
+        target = {}
+        target["boxes"] = boxes
+        target["labels"] = labels
+        target["image_id"] = image_id
+        target["area"] = area
+        target["iscrowd"] = iscrowd
+
+        if self.transform is not None:
+            image, target = self.transform(image, target)
+
+        return image, target
+
+
 class cvatDataset(Dataset):
    def __init__(self, img_dir, annotations_dir, area = 400,takeclass = np.linspace(0,48,49), transform=None, target_transform = None ):
        self.annotation_dir = annotations_dir
@@ -306,7 +377,7 @@ def displayone(model, idx, dataset,thres):
 
 
 
-
+"""
 def train(model, dataset,dataset_test, split):
     model.train()
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -396,4 +467,4 @@ def train_1_epoch(model, optimizer, data_loader, device, epoch, scaler=None):
         if batch % 100 == 0:
             print("Batch: " + str(batch) + "/"+str(len(data_loader)))
 
-    return 
+    return """

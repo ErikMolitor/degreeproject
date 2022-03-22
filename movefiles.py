@@ -352,7 +352,48 @@ def augmentImages2(dataset, img_dir, annot_dir, img_to, annot_to):
         # save_image(image,img_to +"AUGMENTED" + imagenames[idx][:-4]+"_blur.jpg")
         # tree.write(annot_to + "AUGMENTED" +filenames[idx][:-4]+"_blur.xml")
 
+def getrounddata(dataset, img_dir, annot_dir, img_to, annot_to):
+    imagenames = dataset.imagenames
+    filenames = dataset.annotnames
+    x = np.array([1,12,13,17,18,22, 27, 38, 43, 44, 45])
+    x = x + np.ones(len(x))
+    resize = T.Resize((299,299))
 
+
+    for idx in range(dataset.__len__()):
+        image, targets = dataset.__getitem__(idx)
+        boxes = targets['boxes']
+        labels = targets['labels']
+        print(str(idx) + " out of " +str(dataset.__len__()))
+    
+        for idx2, box in enumerate(boxes):
+                            
+            i = int(box[1])
+            j = int(box[0])
+            h = int(box[3]-box[1])
+            w = int(box[2]-box[0])
+            img = T.functional.crop(image,i,j,h,w)
+            img = resize(img)
+
+            save_image(img,img_to +str(np.array(labels[idx2])-1)+"_"+ str(idx)+"_"+str(idx2)+".jpg")
+
+        tree = ET.parse(os.path.join(annot_dir,filenames[idx]))
+        root = tree.getroot()
+
+        ii = -1
+        for child in root:
+            ii += 1
+            if child.tag == 'object':
+                label = child[0].text
+                c4 = child[4]
+                width = int(float(c4[2].text))-int(float(c4[0].text))
+                height = int(float(c4[3].text))-int(float(c4[1].text))
+                testarea = width*height
+                if testarea < dataset.area or int(label) not in dataset.takeclass:
+                    continue
+
+                with open(annot_to +str(label)+"_"+ str(idx)+"_"+str(ii)+".txt", 'w') as f:
+                    f.write(str(label))
 
 def cropandsortnonannot(dataset, img_dir, annot_dir, img_to, annot_to):
 
@@ -387,28 +428,6 @@ def cropandsortnonannot(dataset, img_dir, annot_dir, img_to, annot_to):
             else:
                 print("No annotations")
 
-#cls = 45 
-#imagesrootmovefrom = "./data/agumenteddata/"+str(cls)+"/JPEGImages/" #"./data/agumenteddata/croped/JPEGImages/"#
-#rootannotfrom  = "./data/agumenteddata/"+str(cls)+"/Annotations/" # "./data/agumenteddata/croped/Annotations/"#
-img_dir = './dataset/totaldataset/JPEGImages/'
-annotations_dir = './dataset/totaldataset/Annotations/'
-annot_to ='./dataset/testset/Annotations/'
-img_to ='./dataset/testset/JPEGImages/'
-
-annotations_dir ='./dataset/testset/Annotations/'
-img_dir ='./dataset/testset/JPEGImages/'
-annot_to ='./dataset/testset/firstfoldAnnot/'
-img_to ='./dataset/testset/firstfoldImages/'
-
-
-# annotations_dir ='./dataset/testset/firstfoldAnnot/'
-# img_dir ='./dataset/testset/firstfoldImages/'
-
-annotations_dir ='./dataset/testset/Annotations/'
-img_dir ='./dataset/testset/JPEGImages/'
-annot_to ='./dataset/testset/secondfoldAnnot/'
-img_to ='./dataset/testset/secondfoldImages/'
-
 annotations_dir ='./dataset/testset/Annotations/'
 img_dir ='./dataset/testset/JPEGImages/'
 # annot_to ='./dataset/testset/thirdfoldAnnot/'
@@ -416,8 +435,15 @@ img_dir ='./dataset/testset/JPEGImages/'
 annotations_dir ='./dataset/final/Annotations1600/'
 img_dir ='./dataset/final/JPEGImages1600/'
 
+annotations_dir ='./dataset/final/AnnotationsPed/'
+img_dir ='./dataset/final/JPEGImagesped/'
+annot_to = './dataset/final/inception_V3/AnnotationsRound/'
+img_to = './dataset/final/inception_V3/JPEGRound/'
+
 
 dataset= pascalVoc(img_dir, annotations_dir, transform=get_transform(train=False),area=1600)
+
+getrounddata(dataset,img_dir, annotations_dir, img_to, annot_to)
 
 #augmentImages2(dataset,img_dir, annotations_dir, img_to, annot_to)
 

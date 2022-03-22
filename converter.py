@@ -1,13 +1,9 @@
 #!/usr/bin/env python
 # coding:utf-8
  
-from ast import Break
-from operator import truediv
-from tkinter.tix import Tree
+
 from xml.etree.ElementTree import Element, SubElement, tostring
 from lxml.etree import Element, SubElement, tostring
-import pprint
-from xml.dom.minidom import parseString
 import numpy as np
 from PIL import Image
 import os 
@@ -134,10 +130,3 @@ def xmledit():
 
 xmlconverter()
     
-
-                
-                
-                
-                
-                
-                
