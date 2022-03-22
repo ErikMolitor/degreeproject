@@ -11,13 +11,15 @@ if __name__ == '__main__':
     img_dir = './dataset/croped/JPEGImages/'
     annotations_dir = './dataset/croped/Annotations/'
 
+    img_dir = './dataset/dataForTesting/Telestaden/PanoRensad/'
+    annotations_dir = './dataset/croped/Annotations/'
+
     x = np.array([1,12,13,17,18,22, 27, 38, 43, 44, 45])
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     dataset= pascalVoc(img_dir, annotations_dir,takeclass=x, transform=get_transform(train=True))
     num_classes = len(dataset.takeclass) +1
-
 
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False)
     # get number of input features for the classifier
@@ -33,11 +35,10 @@ if __name__ == '__main__':
     #    dataset, batch_size=1, shuffle=True, num_workers=2,
     #    collate_fn=utils.collate_fn)
     
-    threshold = 0.8
+    threshold = 0.2
 
-    pred, scores  = displayone(model, 308, dataset, threshold)
+    pred, scores  = displayone(model, 53, dataset, threshold,x)
 
-    print(pred)
 
 
 """

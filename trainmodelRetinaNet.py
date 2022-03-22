@@ -1,8 +1,6 @@
 
 from Molitorutils import *
 import torch
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.detection.retinanet import RetinaNet
 from detection.engine import train_one_epoch, evaluate
 import detection.utils as utils
 import pickle
@@ -24,7 +22,7 @@ def main(dataset,dataset_test, model,split):
     dataset = torch.utils.data.Subset(dataset, indices[:num_train])
     dataset_test = torch.utils.data.Subset(dataset_test, indices[num_train:])
 
-    batch_size = 1
+    batch_size = 2
 
     # define training and validation data loaders
     data_loader = torch.utils.data.DataLoader(
@@ -51,10 +49,9 @@ def main(dataset,dataset_test, model,split):
 
     # let's train it for 10 epochs
     losses = []
-    loss_box_reg = []
-    loss_rpn_box_reg = []
-    loss_classifier = []
-    loss_objectness = []
+    classification = []
+    bbox_regression = []
+
     stat0 = []
     stat1 = []
     stat2 = []
@@ -77,19 +74,15 @@ def main(dataset,dataset_test, model,split):
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset
-        
 
         losses.append(float(str(metrics.meters['loss']).split(" ")[0]))
-        loss_box_reg.append(float(str(metrics.meters['loss_box_reg']).split(" ")[0]))
-        loss_rpn_box_reg.append(float(str(metrics.meters['loss_rpn_box_reg']).split(" ")[0]))
-        loss_classifier.append(float(str(metrics.meters['loss_classifier']).split(" ")[0]))
-        loss_objectness.append(float(str(metrics.meters['loss_objectness']).split(" ")[0]))
+        classification.append(float(str(metrics.meters['classification']).split(" ")[0]))
+        bbox_regression.append(float(str(metrics.meters['bbox_regression']).split(" ")[0]))
 
         cocoeval = evaluate(model, data_loader_test, device=device)
         #Stat object is from pycocotools' self.stats in summarize()
         #https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/cocoeval.py
         stat = cocoeval.coco_eval['bbox'].stats
-        
         #Append all stats
         stat0.append(stat[0])
         stat1.append(stat[1])
@@ -104,14 +97,17 @@ def main(dataset,dataset_test, model,split):
         stat10.append(stat[10])
         stat11.append(stat[11])
 
-        #torch.save(model.state_dict(), './savedmodels/modelparams_'+str(epoch)+'.pt')
+        if epoch %5 == 4: # save every 5th epoch model
+            torch.save(model.state_dict(), './savedmodels/RetinaNet/modelparams_'+str(epoch)+'.pt')
 
-        #with open('./savedStats/stats_'+str(epoch)+'.pickle', 'wb') as f:
-        #    pickle.dump([losses, loss_box_reg, loss_rpn_box_reg, loss_classifier, loss_objectness, stat0, stat1, stat2, stat3,
-        #                    stat4, stat5, stat6, stat7, stat8, stat9, stat10, stat11], f)
+        with open('./savedStats/RetinaNet/stats_'+str(epoch)+'.pickle', 'wb') as f:
+           pickle.dump([losses, classification, bbox_regression, stat0, stat1, stat2, stat3,
+                           stat4, stat5, stat6, stat7, stat8, stat9, stat10, stat11], f)
         end =time.time()
-        timediff = (end-start)/60
-        print("Time for epoch: " + str(timediff))
+        dt = (end-start)
+        dtend = dt*(num_epochs-(epoch+1))
+        print('Epoch complete in {:.0f}m {:.0f}s'.format(dt // 60, dt % 60))
+        print('Estimated complete in {:.0f} days {:.0f}h {:.0f}m {:.0f}s'.format(dtend//60//60//24, dtend // 60//60%24,dtend // 60%60, dtend % 60))
     
     return model, dataset, dataset_test
 
@@ -119,17 +115,14 @@ def main(dataset,dataset_test, model,split):
 
 if __name__ == '__main__':
 
-    img_dir = './dataset/newtotal/EssentialImage/'
-    annotations_dir = './dataset/newtotal/EssentialAnnot/'
-
-    annotations_dir ='./dataset/testset/Annotations/'
-    img_dir ='./dataset/testset/JPEGImages/'
+    annotations_dir ='./dataset/final/AnnotationsPed/'
+    img_dir ='./dataset/final/JPEGImagesPed/'
 
     x = np.array([1,12,13,17,18,22, 27, 38, 43, 44, 45]) # just add 14 stop
 
     dataset= pascalVocRetina(img_dir, annotations_dir,takeclass=x, transform=get_transform(train=True))
     dataset_test = pascalVocRetina(img_dir, annotations_dir,takeclass=x,transform=get_transform(train=False))
-    num_classes = dataset.takeclass.size+1
+    num_classes = int(5) # 4+1
 
     model = torchvision.models.detection.retinanet_resnet50_fpn(pretrained=False, pretrained_backbone = True,num_classes=num_classes )
     
@@ -137,17 +130,12 @@ if __name__ == '__main__':
     #in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
     #model.roi_heads.box_predictor = RetinaNet(in_features, num_classes)
-   
+    
 
     #model.load_state_dict(torch.load('./savedmodels/modelparams_2.pt'))
 
-    for idx in range(dataset.__len__()):
-        image, targets = dataset.__getitem__(idx)
-        print(targets['labels'])
-
-
     split  = 0.8
-    #model, dataset, dataset_test = main(dataset,dataset_test, model,split)
+    model, dataset, dataset_test = main(dataset,dataset_test, model,split)
     torch.save(model.state_dict(), 'modelparamslast.pt')
 
 

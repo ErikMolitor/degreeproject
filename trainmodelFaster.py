@@ -23,15 +23,17 @@ def main(dataset,dataset_test, model,split):
     dataset = torch.utils.data.Subset(dataset, indices[:num_train])
     dataset_test = torch.utils.data.Subset(dataset_test, indices[num_train:])
 
+    batch_size = 2
+
     # define training and validation data loaders
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=2, 
+        dataset, batch_size=batch_size, 
         shuffle=True, num_workers=2,
         collate_fn=utils.collate_fn, 
         pin_memory=True)
 
     data_loader_test = torch.utils.data.DataLoader(
-       dataset_test, batch_size=2, 
+       dataset_test, batch_size=batch_size, 
        shuffle=False, num_workers=2,
        collate_fn=utils.collate_fn,pin_memory=True)
     
@@ -54,6 +56,7 @@ def main(dataset,dataset_test, model,split):
     loss_rpn_box_reg = []
     loss_classifier = []
     loss_objectness = []
+    lr = []
     stat0 = []
     stat1 = []
     stat2 = []
@@ -82,6 +85,7 @@ def main(dataset,dataset_test, model,split):
         loss_rpn_box_reg.append(float(str(metrics.meters['loss_rpn_box_reg']).split(" ")[0]))
         loss_classifier.append(float(str(metrics.meters['loss_classifier']).split(" ")[0]))
         loss_objectness.append(float(str(metrics.meters['loss_objectness']).split(" ")[0]))
+        lr.append(float(str(metrics.meters['lr']).split(" ")[0]))
 
         cocoeval = evaluate(model, data_loader_test, device=device)
         #Stat object is from pycocotools' self.stats in summarize()
@@ -102,14 +106,17 @@ def main(dataset,dataset_test, model,split):
         stat10.append(stat[10])
         stat11.append(stat[11])
 
-        #torch.save(model.state_dict(), './savedmodels/modelparams_'+str(epoch)+'.pt')
+        if epoch %5 == 4:
+            torch.save(model.state_dict(), './savedmodels/Faster/modelparams_'+str(epoch)+'.pt')
 
-        #with open('./savedStats/stats_'+str(epoch)+'.pickle', 'wb') as f:
-        #    pickle.dump([losses, loss_box_reg, loss_rpn_box_reg, loss_classifier, loss_objectness, stat0, stat1, stat2, stat3,
-        #                    stat4, stat5, stat6, stat7, stat8, stat9, stat10, stat11], f)
+        with open('./savedStats/Faster/stats_'+str(epoch)+'.pickle', 'wb') as f:
+           pickle.dump([losses, loss_box_reg, loss_rpn_box_reg, loss_classifier, loss_objectness,lr, stat0, stat1, stat2, stat3,
+                           stat4, stat5, stat6, stat7, stat8, stat9, stat10, stat11], f)
         end =time.time()
-        timediff = (end-start)/60
-        print("Time for epoch: " + str(timediff))
+        dt = (end-start)/60
+        dtend = dt*(num_epochs-(epoch+1))
+        print('Epoch complete in {:.0f}m {:.0f}s'.format(dt // 60, dt % 60))
+        print('Estimated complete in {:.0f} days {:.0f}h {:.0f}m {:.0f}s'.format(dtend//60//60//24, dtend // 60//60%24,dtend // 60%60, dtend % 60))
     
     return model, dataset, dataset_test
 
@@ -120,8 +127,8 @@ if __name__ == '__main__':
     img_dir = './dataset/newtotal/EssentialImage/'
     annotations_dir = './dataset/newtotal/EssentialAnnot/'
 
-    annotations_dir ='./dataset/testset/Annotations/'
-    img_dir ='./dataset/testset/JPEGImages/'
+    annotations_dir ='./dataset/final/AnnotationsPed/'
+    img_dir ='./dataset/final/JPEGImagesPed/'
 
     x = np.array([1,12,13,17,18,22, 27, 38, 43, 44, 45]) # just add 14 stop
 

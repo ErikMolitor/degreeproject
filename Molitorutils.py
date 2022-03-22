@@ -1,3 +1,4 @@
+import enum
 import torch
 import numpy as np 
 import os
@@ -128,7 +129,16 @@ class pascalVocRetina(Dataset):
                 if testarea < self.area or int(child[0].text) not in self.takeclass:
                     continue
                 boxes[i,:] = np.array([int(float(c4[0].text)), int(float(c4[1].text)), int(float(c4[2].text)), int(float(c4[3].text))])
-                labels[i] = list(self.takeclass).index(int(child[0].text))+1
+                label = int(child[0].text)
+                if label in self.square:
+                    label = 1
+                elif label in self.round: 
+                    label = 2
+                elif label in self.triangular:
+                    label = 3
+                elif label in self.Invtriangular:
+                    label = 4
+                labels[i] = label#list(self.takeclass).index(int(child[0].text))+1
                 i += 1
                 
         boxes = torch.as_tensor(boxes,dtype=torch.float32)
@@ -266,8 +276,8 @@ class germanDataset(Dataset):
 def get_transform(train):
    transforms = []
    transforms.append(T.ToTensor())
-   if train:
-       transforms.append(T.RandomHorizontalFlip(0.5))
+#    if train:
+#        transforms.append(T.RandomHorizontalFlip(0.5))
    return T.Compose(transforms)
  
  
@@ -357,25 +367,46 @@ def count_classinstances(dataset):
     
     return classinstansces
 
-def displayone(model, idx, dataset,thres):
+def displayone(model, idx, dataset,thres,x):
     model.eval()
     with torch.no_grad():
+        colr = Colors()
         image, targets = dataset.__getitem__(idx)
         image = list([image])
         model = model.to('cpu')
         pred = model(image)
         scores = pred[0]['scores']
+        labels = pred[0]['labels']
         scores_ind = np.argwhere(scores > thres)
         boxes = pred[0]['boxes']
         boxes = boxes[scores_ind]
         image = torch.mul(image[0],255)
         image = torch.tensor(image,dtype=torch.uint8)
         scr = [str(score) for score in scores]
-        imageBB = torchvision.utils.draw_bounding_boxes(image,boxes[0], colors='orange', width= 4)
+        #labels = [str('{:.0f}, {:.3f}'.format(label,scores[idx])) for idx, label in enumerate(labels)]
+        lbs = [str('Cls: {:.0f} Scr: {:.3f}'.format(x[label-1], scores[idx].numpy())) for idx, label in enumerate(labels[scores_ind][0].numpy())]        
+        print(lbs)
+        colors = [colr.__call__(cls) for cls in labels[scores_ind][0].numpy()]
+        imageBB = torchvision.utils.draw_bounding_boxes(image,boxes[0],labels=lbs ,colors=colors, width= 4)
         show(imageBB)
     return pred, scores
 
+class Colors: 
+    # Ultralytics color palette https://ultralytics.com/ 
+    def __init__(self): 
+        # hex = matplotlib.colors.TABLEAU_COLORS.values() 
+        hex = ('FF3838', 'FF9D97', 'FF701F', 'FFB21D', 'CFD231', '48F90A', '92CC17', '3DDB86', '1A9334', '00D4BB', 
+            '2C99A8', '00C2FF', '344593', '6473FF', '0018EC', '8438FF', '520085', 'CB38FF', 'FF95C8', 'FF37C7') 
+        self.palette = [self.hex2rgb('#' + c) for c in hex] 
+        self.n = len(self.palette) 
 
+    def __call__(self, i, bgr=False): 
+        c = self.palette[int(i) % self.n] 
+        return (c[2], c[1], c[0]) if bgr else c 
+
+    @staticmethod 
+    def hex2rgb(h):  # rgb order (PIL) 
+        return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4)) 
 
 """
 def train(model, dataset,dataset_test, split):
