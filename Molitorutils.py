@@ -14,7 +14,6 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import csv 
 import time 
 
-
 class pascalVoc(Dataset):
    def __init__(self, img_dir, annotations_dir, area = 400,takeclass = np.linspace(0,48,49), transform=None, target_transform = None ):
        self.annotation_dir = annotations_dir
@@ -296,7 +295,7 @@ def plotBB(image, target,width = 5):
    image *=255
    image = torch.tensor(image,dtype=torch.uint8)
    labels = [str(i) for i in target['labels'].tolist()]
-   imageBB = torchvision.utils.draw_bounding_boxes(image,target['boxes'],labels, colors="orange",width = width )
+   imageBB = torchvision.utils.draw_bounding_boxes(image,target['boxes'],labels, colors="magenta",width = width )
    show(imageBB)
   
 class laserdata():

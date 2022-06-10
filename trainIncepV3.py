@@ -2,33 +2,41 @@ from Molitorutils import *
 
 import copy
 import pickle
-class inceptiondata(Dataset):
-   def __init__(self, img_dir, annotations_dir, area = 400, target_transform = None ):
-       self.annotation_dir = annotations_dir
-       self.img_dir = img_dir
-       self.target_transform = target_transform
-       self.transform = T.ToTensor()
+import torchvision.transforms as T
+import random
 
-       self.imagenames = sorted(os.listdir(self.img_dir))
-       self.annotnames = sorted(os.listdir(self.annotation_dir))
-       self.length = len(os.listdir(self.annotation_dir))
-      
+class inceptiondata(Dataset):
+   def __init__(self, img_dir, annotations_dir,train, area = 400 ):
+        self.annotation_dir = annotations_dir
+        self.img_dir = img_dir
+        self.transform = torchvision.transforms.ToTensor()
+        self.train = train
+        self.imagenames = sorted(os.listdir(self.img_dir))
+        self.annotnames = sorted(os.listdir(self.annotation_dir))
+        self.length = len(os.listdir(self.annotation_dir))
+        self.randomcrop = T.RandomCrop(size=(128, 128))
+        self.resize = T.Resize((299,299))
+        self.rotate = T.RandomRotation(15)
+        self.autoaug = T.AutoAugment(T.AutoAugmentPolicy.CIFAR10)
    def __len__(self):
        return self.length
  
    def __getitem__(self, idx):
         image = Image.open(self.img_dir +self.imagenames[idx]).convert("RGB")
-        with open(self.annotation_dir+self.annotnames[idx]) as f:
-           label = int(f.readlines()[0]) 
+        if self.train:
+            image = self.autoaug(image)
 
+        with open(self.annotation_dir+self.annotnames[idx]) as f:
+           label = int(f.readlines()[0])
         image = self.transform(image)
         label = torch.tensor(label)
         image = image[0]
 
+
         return image, label
 
 
-def train_model(model, dataloaders, criterion, optimizer,x, num_epochs=25, is_inception=False):
+def train_model(model, dataloaders, criterion, optimizer,x,cls, num_epochs=25, is_inception=False):
     since = time.time()
     num_labels = len(x)
     val_acc_history = []
@@ -40,7 +48,10 @@ def train_model(model, dataloaders, criterion, optimizer,x, num_epochs=25, is_in
     epoch_loss_val = []
     epoch_acc_val = []
 
-    for epoch in range(num_epochs):
+    with open('./savedStats/'+cls+'2/stats_'+cls+'_'+str(999)+'.pickle', 'rb') as f:
+        epoch_loss_train, epoch_acc_train,epoch_loss_val,epoch_acc_val = pickle.load(f)
+
+    for epoch in range(1000,num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
         start = time.time()
@@ -125,18 +136,27 @@ def train_model(model, dataloaders, criterion, optimizer,x, num_epochs=25, is_in
             if phase == 'val':
                 val_acc_history.append(epoch_acc)
         
-        with open('./savedStatsRound/stats_round_'+str(epoch)+'.pickle', 'wb') as f:
-            pickle.dump([epoch_loss_train, epoch_acc_train,epoch_loss_val,epoch_acc_val], f)
-        if epoch %5 == 4:
-            torch.save(model.state_dict(), './savedmodelRound/modelparams_round_'+str(epoch)+'.pt')
+        if epoch %20 == 19 or epoch == 0:
+            with open('./savedStats/'+str(cls)+'2/stats_'+str(cls)+'_'+str(epoch)+'.pickle', 'wb') as f:
+                pickle.dump([epoch_loss_train, epoch_acc_train,epoch_loss_val,epoch_acc_val], f)
+            
+            torch.save(model.state_dict(), './savedmodels/'+str(cls)+'2/modelparams_'+str(cls)+'_'+str(epoch)+'.pt')
+        
         end = time.time()
         dt = end -start
-        print('Batch complete in {:.0f}m {:.0f}s'.format(dt // 60, dt % 60))
 
         print()
-    time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
+        dtt = (end-since)/(epoch+1)
+        dtend = dtt*(num_epochs-(epoch+1))
+        
+        dtend = dt*(num_epochs-(epoch+1))
+
+        print('Best val Acc: {:4f}'.format(best_acc))
+        print('Epoch complete in {:.0f}m {:.0f}s'.format(dt // 60, dt % 60))
+        print('Estimated complete in {:.0f} days {:.0f}h {:.0f}m {:.0f}s'.format(dtend//60//60//24, dtend // 60//60%24,dtend // 60%60, dtend % 60))
+        print()
+        print()
+
 
     # load best model weights
     model.load_state_dict(best_model_wts)
@@ -146,12 +166,12 @@ def train_model(model, dataloaders, criterion, optimizer,x, num_epochs=25, is_in
 
 if __name__ == '__main__':
     
-    cls = "Round"
+    #cls = "Round"
     #cls = "Square"
-    #cls = "Triangular"
+    cls = "Triangular"
 
     if cls == "Round":
-        #round
+        #round2
         x = np.array([1,17, 38, 43, 44]) # just add 14 stop
     elif cls == "Square":
         #square
@@ -163,8 +183,8 @@ if __name__ == '__main__':
     annotations_dir ='./dataset/final/inception_V3/Annotations'+str(cls)+'/'
     img_dir ='./dataset/final/inception_V3/JPEGImages'+str(cls)+'/'
 
-    dataset= inceptiondata(img_dir, annotations_dir)
-    dataset_test = inceptiondata(img_dir, annotations_dir)
+    dataset= inceptiondata(img_dir, annotations_dir,train=True)
+    dataset_test = inceptiondata(img_dir, annotations_dir,train=False)
     
     #Model set up
     model = torchvision.models.inception_v3(pretrained=False,aux_logits=True)
@@ -179,7 +199,7 @@ if __name__ == '__main__':
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
 
-    #model.load_state_dict(torch.load('./savedmodels/modelparams_2.pt'))
+    model.load_state_dict(torch.load('./savedmodels/'+str(cls)+'2/modelparams_'+str(cls)+'_999.pt'))
     
     split  = 0.8
     torch.manual_seed(1)
@@ -190,18 +210,18 @@ if __name__ == '__main__':
     dataset = torch.utils.data.Subset(dataset, indices[:num_train])
     dataset_test = torch.utils.data.Subset(dataset_test, indices[num_train:])
 
-    batch_size = 8
+    batch_size = 4
 
     # define training and validation data loaders
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, 
         shuffle=True, num_workers=2,
-        pin_memory=True)
+        pin_memory=True,drop_last=True)
 
     data_loader_test = torch.utils.data.DataLoader(
        dataset_test, batch_size=batch_size, 
        shuffle=False, num_workers=2,
-       pin_memory=True)
+       pin_memory=True,drop_last=True)
 
     dataloaders = {
         'train': data_loader,
@@ -211,7 +231,6 @@ if __name__ == '__main__':
     optimizer = torch.optim.SGD(params, lr=0.0001,
                                 momentum=0.9)
     criterion = torch.nn.MSELoss(0.001)
-    num_epochs = 200
-    model, val_acc_history = train_model(model, dataloaders, criterion, optimizer, x,num_epochs, is_inception=True)
-    torch.save(model.state_dict(), './savedmodelRound/model_best_params_round.pt')
+    num_epochs = 3000
+    model, val_acc_history = train_model(model, dataloaders, criterion, optimizer, x,cls,num_epochs, is_inception=True)
 

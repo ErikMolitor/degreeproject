@@ -22,7 +22,7 @@ def main(dataset,dataset_test, model,split):
     dataset = torch.utils.data.Subset(dataset, indices[:num_train])
     dataset_test = torch.utils.data.Subset(dataset_test, indices[num_train:])
 
-    batch_size = 2
+    batch_size = 1
 
     # define training and validation data loaders
     data_loader = torch.utils.data.DataLoader(
@@ -45,7 +45,7 @@ def main(dataset,dataset_test, model,split):
     #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    #step_size=3,
                                                    #gamma=0.5)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1, T_mult=2)
+    #lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1, T_mult=2)
 
     # let's train it for 10 epochs
     losses = []
@@ -72,7 +72,7 @@ def main(dataset,dataset_test, model,split):
         # train for one epoch, printing every 10 iterations
         metrics = train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)  
         # update the learning rate
-        lr_scheduler.step()
+        #lr_scheduler.step()
         # evaluate on the test dataset
 
         losses.append(float(str(metrics.meters['loss']).split(" ")[0]))
@@ -123,7 +123,7 @@ if __name__ == '__main__':
     dataset= pascalVocRetina(img_dir, annotations_dir,takeclass=x, transform=get_transform(train=True))
     dataset_test = pascalVocRetina(img_dir, annotations_dir,takeclass=x,transform=get_transform(train=False))
     num_classes = int(5) # 4+1
-
+    
     model = torchvision.models.detection.retinanet_resnet50_fpn(pretrained=False, pretrained_backbone = True,num_classes=num_classes )
     
 

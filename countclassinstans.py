@@ -43,7 +43,7 @@ lst50 = []
 lst100 = []
 lst200 = []
 for idx, cls in enumerate(ci1):
-    print("%0.0f %5s %-5.0f %-5.0f %-5.0f %-5.0f" %(idx, " SWECO: ", round(cls),ci2[idx],ci3[idx],ci4[idx] ))
+    print("%0.0f %5s %-5.0f %-5.0f %-5.0f %-5.0f" %(idx, ": ", round(cls),ci2[idx],ci3[idx],ci4[idx] ))
     
     if ci1[idx]>=50:
        lst50.append(idx)

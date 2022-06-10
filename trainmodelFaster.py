@@ -47,10 +47,10 @@ def main(dataset,dataset_test, model,split):
     #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    #step_size=3,
                                                    #gamma=0.5)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1, T_mult=2)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=500, T_mult=2)
 
     # let's train it for 10 epochs
-    num_epochs = 200
+    num_epochs = 1000
     losses = []
     loss_box_reg = []
     loss_rpn_box_reg = []
@@ -69,9 +69,12 @@ def main(dataset,dataset_test, model,split):
     stat9 = []
     stat10 = []
     stat11 = []
+    with open('./savedStats/Faster/stats_499.pickle', 'rb') as f:
+        losses, loss_box_reg, loss_rpn_box_reg, loss_classifier, loss_objectness,lr, stat0, stat1, stat2, stat3,stat4, stat5, stat6, stat7, stat8, stat9, stat10, stat11 = pickle.load(f)
 
 
-    for epoch in range(0,num_epochs):
+
+    for epoch in range(500,num_epochs):
         start = time.time()
         # train for one epoch, printing every 10 iterations
         metrics = train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)  
@@ -113,7 +116,7 @@ def main(dataset,dataset_test, model,split):
            pickle.dump([losses, loss_box_reg, loss_rpn_box_reg, loss_classifier, loss_objectness,lr, stat0, stat1, stat2, stat3,
                            stat4, stat5, stat6, stat7, stat8, stat9, stat10, stat11], f)
         end =time.time()
-        dt = (end-start)/60
+        dt = (end-start)
         dtend = dt*(num_epochs-(epoch+1))
         print('Epoch complete in {:.0f}m {:.0f}s'.format(dt // 60, dt % 60))
         print('Estimated complete in {:.0f} days {:.0f}h {:.0f}m {:.0f}s'.format(dtend//60//60//24, dtend // 60//60%24,dtend // 60%60, dtend % 60))
@@ -142,7 +145,7 @@ if __name__ == '__main__':
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
     
-    #model.load_state_dict(torch.load('./savedmodels/modelparams_2.pt'))
+    model.load_state_dict(torch.load('./savedmodels/Faster/modelparams_499.pt'))
 
     split  = 0.8
     model, dataset, dataset_test = main(dataset,dataset_test, model,split)

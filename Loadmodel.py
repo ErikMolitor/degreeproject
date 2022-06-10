@@ -12,7 +12,18 @@ if __name__ == '__main__':
     annotations_dir = './dataset/croped/Annotations/'
 
     img_dir = './dataset/dataForTesting/Telestaden/PanoRensad/'
+    img_dir = './dataset/german/JPEGImages/'
+    img_dir = './dataset/presentation/'
+
     annotations_dir = './dataset/croped/Annotations/'
+    
+    # annotations_dir ='./dataset/final/AnnotationsPed/'
+    # img_dir ='./dataset/final/JPEGImagesPed/'
+
+    
+    # annotations_dir ='./dataset/testdata2/Annotations/'
+    # img_dir ='./dataset/testdata2/JPEGImages/'
+    
 
     x = np.array([1,12,13,17,18,22, 27, 38, 43, 44, 45])
 
@@ -27,7 +38,7 @@ if __name__ == '__main__':
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
     model.to(device)
-    model.load_state_dict(torch.load('./savedmodels/modelparams_199.pt'))
+    model.load_state_dict(torch.load('./savedmodels/Faster/modelparams_504.pt'))
     model.eval()
 
     # define training and validation data loaders
@@ -37,7 +48,8 @@ if __name__ == '__main__':
     
     threshold = 0.2
 
-    pred, scores  = displayone(model, 53, dataset, threshold,x)
+    pred, scores  = displayone(model,1 , dataset, threshold,x)
+
 
 
 
